@@ -1,0 +1,11 @@
+python
+*r
+\nr
+ r 
+data science
+data analyst
+data analytics
+analytics
+graph
+excel
+sql

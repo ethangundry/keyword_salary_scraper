@@ -5,21 +5,23 @@ average salary.
 
 import logging
 import re
-import time
 from typing import List
 # TODO: Fix type hints for nested lists.
 
 import bs4
 from bs4 import BeautifulSoup
 import matplotlib.pyplot as plt
-import numpy as np
 import pandas as pd
 import requests
 import seaborn as sns
 
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(level=logging.INFO)
 
 # TODO: Refactor functions into separate files.
+# TODO: Add multithreading to speed up process.
+
+# TODO: Add function to simply search for number of occurrences among 
+# given jobs.
 
 def main():
     user_val = "1"
@@ -31,22 +33,25 @@ def main():
                               "If you are done entering keywords, simply enter"
                               " nothing.")
         print(user_val)
-        keywords.append(user_val)
+        if user_val == "":
+            pass
+        else:
+            keywords.append(user_val)
 
-    x = scrape_data(collect_postings(search, keywords, ))
+    x = scrape_data(collect_postings(search, pages), keywords)
     graph_data(x)
+    print(f"Total job postings scraped: {pages * 10}")
 
 
 # TODO: Define function to scrape x number of job postings using some
 # search word from indeed.com.
-def collect_postings(search: str, keywords: list, page: int = 2) -> list:
+def collect_postings(search: str, page: int = 1) -> list:
     # TODO: Add 'location' parameter.
     """
     When passed a given search for job postings, will scrape through
     (page * 10) job postings and return a list of all the job urls.
 
     str search: The job title to search for.
-    list[str] keywords: The keywords to search for.
     int page: The amount of pages to search through.
 
     return list[str]: The list of URL postfixes of job postings.
@@ -62,7 +67,7 @@ def collect_postings(search: str, keywords: list, page: int = 2) -> list:
         # Indeed uses &start=x to track its pages, where x is the page 
         # number you're on times 10, minus 10. So page 1 is 0, page 2 is 10
         # etc.
-        url = (f"https://www.indeed.com/jobs?q={search}&l=seattle"
+        url = (f"https://www.indeed.com/jobs?q={search}&l=new york"
                f"&start={i * 10 - 10}")
         logging.info(url)
         jobs = requests.get(url, headers)
@@ -93,6 +98,9 @@ def scrape_posting(response, keyword: str):
     str keyword: The keyword to search for.
     """
 
+    hourly = False
+    monthly = False
+
     soup = BeautifulSoup(response.content, 'html.parser')
     # If the job doesn't have a salary listing, simply return None.
     if not soup.find("div", string="Salary"):
@@ -103,14 +111,15 @@ def scrape_posting(response, keyword: str):
     # TODO: Clean up regex. Make it faster and easier to read.
 
     salary = soup.find("div", string="Salary").parent.span.text
-    # TODO: Add ability to exclude hourly salaries, or convert to 
-    # annual salaries.
+    # TODO: Add ability to convert non-annual salaries to annual.
     if "hour" in salary:
-        logging.info("Pays hourly; skipped for now.")
-        return None
+
+        #logging.info("Pays hourly; skipped for now.")
+        #return None
+        logging.info("Pays hourly")
+        hourly = True
     elif "month" in salary:
-        logging.info("Pays monthly; skipped for now.")
-        return None
+        monthly = True
 
     logging.info(f"PRE-REGEX SALARY: {salary}")
     # Match a string that begins with $ and 1 or more numeric digits
@@ -135,6 +144,11 @@ def scrape_posting(response, keyword: str):
 
     if keyword in job_text.lower():
         logging.info(f"Keyword {keyword} found with salary of {salary}")
+        if hourly:
+            # Assume 40 hours of work a week. 
+            return salary * 40 * 12
+        elif monthly:
+            return salary * 12
         return salary
     else:
         logging.info(f"{keyword} was not found in current posting.")
@@ -145,24 +159,24 @@ def scrape_posting(response, keyword: str):
     # part-time jobs, or both.
 
 
-def scrape_data(urls: list):
+def scrape_data(urls: list, keywords: list):
     """
     When passed a list of indeed.com url postfixes, will scrape those
     job postings for keywords and their salary.
 
-    urls: A list of indeed.com job posting urls.
+    list[str] urls: A list of indeed.com job posting urls.
+    list[str] keywords: The keywords to search for.
 
     return: A Pandas Series object containing a list of salaries for
     each keyword.
     """
     # TODO: Add parameter to pass in a custom list of comma-separated
     # keywords.
-    KEYWORDS = ["python", "SQL", "Excel"]
 
     # TODO: Consider changing to Pandas dataframe.
     kw_salaries = {}
     # TODO: Find more Pythonic way to do this; perhaps by using .get?
-    for keyword in KEYWORDS:
+    for keyword in keywords:
         kw_salaries[keyword] = []
 
     for url in urls:
@@ -177,7 +191,7 @@ def scrape_data(urls: list):
         # TODO: Add an option to print how many of the job postings
         # contained salary levels, out of the total amount of job
         # postings.
-        for keyword in KEYWORDS:
+        for keyword in keywords:
             s = scrape_posting(r, keyword)
             if s:
                 logging.info(f"Salary:{s}")

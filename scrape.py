@@ -57,35 +57,76 @@ def collect_postings(search: str, page: int = 1) -> list:
 # TODO: Make a function that scrapes a posting simply to check if the
 # passed keyword exists or not.
 
-def scrape_posting_salary(response, keyword: str):
+def scrape_posting(response, keyword: str, salary: bool = False):
     """
     When passed the request object containing an indeed.com job posting
     page, will check whether the page contains the given keyword, and
-    if so, will return a list containing the salary of the job,
-    followed by each valid keyword.
+    if so, returns True. Else, returns False.
 
     response: A requests response object.
     str keyword: The keyword to search for.
+    bool salary: Whether or not to include the salary in the return.
+                 False by default.
+
+    return list: If salary is True, the list contains [bool, int].
+                 Otherwise, simply contains [bool].
     """
+
+    return_value = [False, -1]
+    soup = BeautifulSoup(response.content, 'html.parser')
+
+
+    # Convert to lower for comparison to text.
+    keyword = keyword.lower()
+    # TODO: Add options for alternative forms of the webpage that don't
+    # use "jobDescriptionText" in the CSS.
+    try:
+        job_text = soup.find("div", id="jobDescriptionText").text
+    except AttributeError:
+        logging.warning("This job does not have a jobDescriptionText id in its"
+                        " text.")
+        return return_value
+
+    if keyword in job_text.lower():
+        logging.info(f"Keyword {keyword} found")
+        return_value[0] = True
+        pay = scrape_salary(soup)
+        if pay >= 0:
+            return_value[1] = pay
+    else:
+        logging.info(f"{keyword} was not found in current posting.")
+        return_value[0] = False
+
+    return return_value
+
+    # TODO: Check to make sure function only accepts full-time jobs.
+    # TODO: Make optional parameter to check for full-time jobs, 
+    # part-time jobs, or both.
+
+def scrape_salary(text):
+    """
+    When passed a beautifulsoup object, returns the salary if there is
+    one within the text.
+
+    text text: The beautifulsoup text.
+
+    return int: The salary in the text. -1 if the salary is not found.
+    """
+    # If the job doesn't have a salary listing, simply return None.
+    if not text.find("div", string="Salary"):
+        logging.info("Salary not found.")
+        return -1
 
     hourly = False
     monthly = False
 
-    soup = BeautifulSoup(response.content, 'html.parser')
-    # If the job doesn't have a salary listing, simply return None.
-    if not soup.find("div", string="Salary"):
-        logging.info("Salary not found.")
-        return None
-
-
     # TODO: Clean up regex. Make it faster and easier to read.
 
-    salary = soup.find("div", string="Salary").parent.span.text
-    # TODO: Add ability to convert non-annual salaries to annual.
+    salary = text.find("div", string="Salary").parent.span.text
+    # TODO: Add ability to set the ratio of hourly jobs to annual pay;
+    # e.g. whether to assume salaried people work 50 hours a work 
+    # instead of 40.
     if "hour" in salary:
-
-        #logging.info("Pays hourly; skipped for now.")
-        #return None
         logging.info("Pays hourly")
         hourly = True
     elif "month" in salary:
@@ -106,27 +147,14 @@ def scrape_posting_salary(response, keyword: str):
     logging.info(salary_pattern.match(salary).group(1))
 
     salary = int(salary_pattern.match(salary).group(1)[1:].replace(',', ''))
-
-    # Convert to lower for comparison to text.
-    keyword = keyword.lower()
-    job_text = soup.find("div", id="jobDescriptionText").text
     logging.info(f"SCRAPED SALARY: {salary}")
 
-    if keyword in job_text.lower():
-        logging.info(f"Keyword {keyword} found with salary of {salary}")
-        if hourly:
-            # Assume 40 hours of work a week. 
-            return salary * 40 * 12
-        elif monthly:
-            return salary * 12
-        return salary
-    else:
-        logging.info(f"{keyword} was not found in current posting.")
-        return None
-
-    # TODO: Check to make sure function only accepts full-time jobs.
-    # TODO: Make optional parameter to check for full-time jobs, 
-    # part-time jobs, or both.
+    if hourly:
+        # Assume 40 hours of work a week. 
+        return salary * 40 * 12
+    elif monthly:
+        return salary * 12
+    return salary
 
 
 def scrape_data(urls: list, keywords: list):
@@ -140,8 +168,6 @@ def scrape_data(urls: list, keywords: list):
     return: A Pandas Series object containing a list of salaries for
     each keyword.
     """
-    # TODO: Add parameter to pass in a custom list of comma-separated
-    # keywords.
 
     # TODO: Consider changing to Pandas dataframe.
     kw_salaries = {}
@@ -162,10 +188,10 @@ def scrape_data(urls: list, keywords: list):
         # contained salary levels, out of the total amount of job
         # postings.
         for keyword in keywords:
-            s = scrape_posting_salary(r, keyword)
-            if s:
+            s = scrape_posting(r, keyword, salary=True)
+            if s[1] != -1:
                 logging.info(f"Salary:{s}")
-                kw_salaries[keyword].append(s)
+                kw_salaries[keyword].append(s[1])
 
     # TODO: Fix sloppy Pandas code.
     for i, v in kw_salaries.items():

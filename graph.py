@@ -6,6 +6,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 import seaborn as sns
 
+# TODO: PRIORITY 1: Add option to graph the salaries, the ratio or
+#                   count of the keywords, or both - perhaps against
+#                   eachother.
 # TODO: Add option for scatterplots instead of bar charts.
 def graph_data(data) -> None:
     """

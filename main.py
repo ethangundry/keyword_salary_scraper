@@ -9,7 +9,7 @@ from typing import List
 
 
 from graph import graph_data
-from scrape import collect_postings, scrape_posting_salary, scrape_data
+from scrape import collect_postings, scrape_posting, scrape_data
 
 logging.basicConfig(level=logging.INFO)
 
@@ -25,6 +25,9 @@ def main():
     pages = int(input("How many pages would you like to search through?"))
     keywords = []
     while user_val:
+        # TODO: Add support for one-letter keywords (C, R, etc.) by
+        # automatically adding spaces and HTML values for bullet 
+        # points to the keyword.
         user_val = input("Please enter keywords you wish to search for. "
                               "If you are done entering keywords, simply enter"
                               " nothing.")
